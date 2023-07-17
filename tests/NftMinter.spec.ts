@@ -1,9 +1,10 @@
 import { Blockchain, SandboxContract } from '@ton-community/sandbox';
-import { beginCell, Cell, toNano } from 'ton-core';
+import { beginCell, Cell, contractAddress, toNano } from 'ton-core';
 import { NftMinter } from '../wrappers/NftMinter';
 import '@ton-community/test-utils';
 import { compile } from '@ton-community/blueprint';
 import { decodeOffChainContent } from '../wrappers/metadata';
+import { NftItem } from '../wrappers/NftItem';
 
 describe('NftMinter', () => {
   let code: Cell;
@@ -64,11 +65,14 @@ describe('NftMinter', () => {
     expect(data.ownerAddress).toEqualAddress(deployer.address);
   });
 
-  it('should get nft content', async () => {
-    const someContent = 'Penis.json';
-    const nftContent = await nftMinter.getNftContent(0n, beginCell().storeBuffer(Buffer.from(someContent)).endCell());
+  it('should get nft address by index', async () => {
+    const index = 0n;
+    const address = await nftMinter.getNftAddressByIndex(index);
 
-    expect(nftContent).toBe(commonContentUrl + someContent);
+    const data = beginCell().storeUint(index, 64).storeAddress(nftMinter.address).endCell();
+    const code = await compile('NftItem');
+
+    expect(address).toEqualAddress(contractAddress(0, { code, data }));
   });
 
   it('should get rolayty params', async () => {
@@ -78,5 +82,59 @@ describe('NftMinter', () => {
     expect(params.factor).toBe(10);
     expect(params.base).toBe(100);
     expect(params.address).toEqualAddress(deployer.address);
+  });
+
+  it('should get nft content', async () => {
+    const someContent = 'Penis.json';
+    const nftContent = await nftMinter.getNftContent(0n, beginCell().storeBuffer(Buffer.from(someContent)).endCell());
+
+    expect(nftContent).toBe(commonContentUrl + someContent);
+  });
+
+  it('should mint nft', async () => {
+    const sender = await blockchain.treasury('sender');
+
+    const mintResult = await nftMinter.sendMint(sender.getSender(), {
+      value: toNano('0.05'),
+      queryId: Date.now(),
+      coinsForStorage: toNano('0.05'),
+    });
+
+    expect(mintResult.transactions).toHaveTransaction({
+      from: sender.address,
+      to: nftMinter.address,
+      success: true,
+    });
+  });
+
+  it('should batch mint nft', async () => {
+    const sender = await blockchain.treasury('sender');
+
+    const mintResult = await nftMinter.sendBatchMint(sender.getSender(), {
+      value: toNano('3'),
+      queryId: Date.now(),
+    });
+
+    expect(mintResult.transactions).toHaveTransaction({
+      from: sender.address,
+      to: nftMinter.address,
+      success: true,
+    });
+  });
+
+  it('should not batch mint more than 250 nft', async () => {
+    const sender = await blockchain.treasury('sender');
+
+    const mintResult = await nftMinter.sendBatchMint(sender.getSender(), {
+      value: toNano('25'), // 25 = 250 items
+      queryId: Date.now(),
+    });
+
+    expect(mintResult.transactions).toHaveTransaction({
+      from: sender.address,
+      to: nftMinter.address,
+      success: false,
+      exitCode: 399,
+    });
   });
 });

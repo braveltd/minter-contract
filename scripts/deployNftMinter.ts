@@ -9,11 +9,11 @@ export async function run(provider: NetworkProvider) {
       {
         ownerAddress: sender_address,
         nextItemIndex: 0,
-        collectionContentUrl: 'https://nft.ton.diamonds/diamonds.json',
-        commonContentUrl: 'https://crypto-pepe-dev.github.io/pepe/nfts/metadata/',
+        collectionContentUrl: 'https://nft.ton.diamonds/octopus-boyz/octopusboyz.json',
+        commonContentUrl: 'https://nft.ton.diamonds/octopus-boyz/nft/',
         nftItemCode: await compile('NftItem'),
         royaltyParams: {
-          factor: 15,
+          factor: 10,
           base: 100,
           address: sender_address,
         },

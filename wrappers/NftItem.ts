@@ -1,9 +1,20 @@
 import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from 'ton-core';
+import { decodeOffChainContent, encodeOffChainContent } from './metadata';
 
-export type NftItemConfig = {};
+export type NftItemConfig = {
+  index: number;
+  collectionAddress: Address;
+  ownerAddress: Address;
+  content: string;
+};
 
-export function nftMinterConfigToCell(config: NftItemConfig): Cell {
-  return beginCell().endCell();
+export function nftItemConfigToCell(config: NftItemConfig): Cell {
+  return beginCell()
+    .storeUint(config.index, 64)
+    .storeAddress(config.collectionAddress)
+    .storeAddress(config.ownerAddress)
+    .storeRef(encodeOffChainContent(config.content))
+    .endCell();
 }
 
 export class NftItem implements Contract {
@@ -14,7 +25,7 @@ export class NftItem implements Contract {
   }
 
   static createFromConfig(config: NftItemConfig, code: Cell, workchain = 0) {
-    const data = nftMinterConfigToCell(config);
+    const data = nftItemConfigToCell(config);
     const init = { code, data };
     return new NftItem(contractAddress(workchain, init), init);
   }
@@ -25,5 +36,17 @@ export class NftItem implements Contract {
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell().endCell(),
     });
+  }
+
+  async getNftData(provider: ContractProvider) {
+    const result = await provider.get('get_nft_data', []);
+
+    return {
+      init: result.stack.readBoolean(),
+      index: result.stack.readNumber(),
+      collectionAddress: result.stack.readAddress(),
+      ownerAddress: result.stack.readAddress(),
+      content: decodeOffChainContent(result.stack.readCell()),
+    };
   }
 }

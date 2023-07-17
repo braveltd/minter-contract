@@ -3,8 +3,8 @@ import { decodeOffChainContent, encodeOffChainContent } from './metadata';
 
 export const Opcodes = {
   getRoyaltyParams: 0x693d3950,
-  deploy: 1,
-  batchDeploy: 2,
+  mint: 1,
+  batchMint: 2,
   changeOwner: 3,
   changeContent: 4,
 };
@@ -65,17 +65,93 @@ export class NftMinter implements Contract {
     });
   }
 
-  async getCollectionData(provider: ContractProvider) {
-    const result = await provider.get('get_collection_data', []);
+  async sendGetRoyaltyParams(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryId: number;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell().storeUint(Opcodes.getRoyaltyParams, 32).storeUint(opts.queryId, 64).endCell(),
+    });
+  }
+
+  async sendMint(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryId: number;
+      coinsForStorage: bigint;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(Opcodes.mint, 32)
+        .storeUint(opts.queryId, 64)
+        .storeCoins(opts.coinsForStorage)
+        .endCell(),
+    });
+  }
+
+  async sendBatchMint(
+    provider: ContractProvider,
+    via: Sender,
+    opts: {
+      value: bigint;
+      queryId: number;
+    }
+  ) {
+    await provider.internal(via, {
+      value: opts.value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell().storeUint(Opcodes.batchMint, 32).storeUint(opts.queryId, 64).endCell(),
+    });
+  }
+
+  async getCollectionData(provider: ContractProvider): Promise<{
+    nextItemIndex: number;
+    collectionContentUrl: string;
+    ownerAddress: Address;
+  }> {
+    const { stack } = await provider.get('get_collection_data', []);
+
     return {
-      nextItemIndex: result.stack.readNumber(),
-      collectionContentUrl: decodeOffChainContent(result.stack.readCell()),
-      ownerAddress: result.stack.readAddress(),
+      nextItemIndex: stack.readNumber(),
+      collectionContentUrl: decodeOffChainContent(stack.readCell()),
+      ownerAddress: stack.readAddress(),
+    };
+  }
+
+  async getNftAddressByIndex(provider: ContractProvider, index: bigint): Promise<Address> {
+    const { stack } = await provider.get('get_nft_address_by_index', [
+      {
+        type: 'int',
+        value: index,
+      },
+    ]);
+
+    return stack.readAddress();
+  }
+
+  async getRoyaltyParams(provider: ContractProvider): Promise<RoyaltyParams> {
+    const { stack } = await provider.get('royalty_params', []);
+
+    return {
+      factor: stack.readNumber(),
+      base: stack.readNumber(),
+      address: stack.readAddress(),
     };
   }
 
   async getNftContent(provider: ContractProvider, index: bigint, individualNftContent: Cell): Promise<string> {
-    const result = await provider.get('get_nft_content', [
+    const { stack } = await provider.get('get_nft_content', [
       {
         type: 'int',
         value: index,
@@ -86,16 +162,6 @@ export class NftMinter implements Contract {
       },
     ]);
 
-    return decodeOffChainContent(result.stack.readCell());
-  }
-
-  async getRoyaltyParams(provider: ContractProvider): Promise<RoyaltyParams> {
-    const result = await provider.get('royalty_params', []);
-
-    return {
-      factor: result.stack.readNumber(),
-      base: result.stack.readNumber(),
-      address: result.stack.readAddress(),
-    };
+    return decodeOffChainContent(stack.readCell());
   }
 }
