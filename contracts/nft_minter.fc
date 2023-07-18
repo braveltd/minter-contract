@@ -131,7 +131,7 @@ slice calculate_nft_item_address(int wc, cell state_init) {
     int can_mint_items = msg_value / batch_mint_price;
 
     throw_unless(399, can_mint_items < 250); ;; Limit due to limits of action list size
-    throw_unless(402, max_supply > next_item_index + can_mint_items);
+    throw_unless(402, max_supply >= next_item_index + can_mint_items);
 
     while (can_mint_items > 0) {
       deploy_nft_item(sender_address, next_item_index, nft_item_code, 50000000);
